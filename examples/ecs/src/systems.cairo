@@ -1,142 +1,81 @@
 #[system]
-mod spawn {
-    use array::ArrayTrait;
-    use box::BoxTrait;
+mod create_card_system {
     use traits::Into;
+
     use dojo::world::Context;
-
-    use dojo_examples::components::Position;
-    use dojo_examples::components::Moves;
-
-    fn execute(ctx: Context) {
-        let position = get !(ctx.world, ctx.origin, (Position));
-        set !(
-            ctx.world,
-            (
-                Moves {
-                    player: ctx.origin, remaining: 10
-                    }, Position {
-                    player: ctx.origin, x: position.x + 10, y: position.y + 10
-                },
-            )
-        );
-        return ();
-    }
-}
-
-#[system]
-mod move {
     use starknet::ContractAddress;
-    use array::ArrayTrait;
-    use box::BoxTrait;
-    use traits::Into;
-    use dojo::world::Context;
-
-    use dojo_examples::components::Position;
-    use dojo_examples::components::Moves;
-
-    #[derive(Drop, starknet::Event)]
-    struct Moved {
-        address: ContractAddress,
-        direction: Direction
-    }
+    use dojo_examples::components::Card;
+    use dojo_examples::components::Roles;
+    use option::{Option, OptionTrait};
+    use traits::TryInto;
 
 
-    #[derive(Serde, Copy, Drop)]
-    enum Direction {
-        Left: (),
-        Right: (),
-        Up: (),
-        Down: (),
-    }
-
-    impl DirectionIntoFelt252 of Into<Direction, felt252> {
-        fn into(self: Direction) -> felt252 {
-            match self {
-                Direction::Left(()) => 0,
-                Direction::Right(()) => 1,
-                Direction::Up(()) => 2,
-                Direction::Down(()) => 3,
+    //This part is for test prupose
+    fn execute(ctx: Context, token_id: felt252, role: felt252, dribble: felt252) {
+        set!(
+            ctx.world, Card {
+                token_id: token_id.into(),
+                dribble: dribble.try_into().unwrap(),
+                current_dribble: 10,
+                defense: 10,
+                current_defense: 10,
+                cost: 10,
+                role: Roles::A,
+                is_captain: false
             }
-        }
-    }
+        );
 
-    fn execute(ctx: Context, direction: Direction) {
-        let (mut position, mut moves) = get !(ctx.world, ctx.origin, (Position, Moves));
-        moves.remaining -= 1;
-        let next = next_position(position, direction);
-        set !(ctx.world, (moves, next));
-        emit !(ctx.world, Moved { address: ctx.origin, direction });
-        return ();
-    }
-
-    fn next_position(mut position: Position, direction: Direction) -> Position {
-        match direction {
-            Direction::Left(()) => {
-                position.x -= 1;
-            },
-            Direction::Right(()) => {
-                position.x += 1;
-            },
-            Direction::Up(()) => {
-                position.y -= 1;
-            },
-            Direction::Down(()) => {
-                position.y += 1;
-            },
-        };
-
-        position
+        let token_id = get!(ctx.world, token_id, Card);
     }
 }
+
 
 #[cfg(test)]
 mod tests {
-    use core::traits::Into;
     use array::ArrayTrait;
-
+    use option::{Option, OptionTrait};
+    use debug::PrintTrait;
     use dojo::world::IWorldDispatcherTrait;
+
+    use dojo_examples::components::{Card, card};
+    use dojo_examples::systems::create_card_system;
+    use traits::Into;
+    use traits::TryInto;
 
     use dojo::test_utils::spawn_test_world;
 
-    use dojo_examples::components::position;
-    use dojo_examples::components::Position;
-    use dojo_examples::components::moves;
-    use dojo_examples::components::Moves;
-    use dojo_examples::systems::spawn;
-    use dojo_examples::systems::move;
 
     #[test]
     #[available_gas(30000000)]
-    fn test_move() {
-        let caller = starknet::contract_address_const::<0x0>();
-
-        // components
+    fn test_card() {
+        // let mut systems = array![create_card_system::TEST_CLASS_HASH];
+        // let mut components = array![card::TEST_CLASS_HASH];
         let mut components = array::ArrayTrait::new();
-        components.append(position::TEST_CLASS_HASH);
-        components.append(moves::TEST_CLASS_HASH);
-        // systems
+        components.append(card::TEST_CLASS_HASH);
+
         let mut systems = array::ArrayTrait::new();
-        systems.append(spawn::TEST_CLASS_HASH);
-        systems.append(move::TEST_CLASS_HASH);
+        systems.append(create_card_system::TEST_CLASS_HASH);
 
         // deploy executor, world and register components/systems
         let world = spawn_test_world(components, systems);
 
-        let spawn_call_data = array::ArrayTrait::new();
-        world.execute('spawn', spawn_call_data);
+        //Create Card For test prupose
+        let mut create_card_calldata: Array<felt252> = ArrayTrait::new();
+        create_card_calldata.append(1);
+        create_card_calldata.append(0);
+        create_card_calldata.append(12);
+        world.execute('create_card_system', create_card_calldata);
 
-        let mut move_calldata = array::ArrayTrait::new();
-        move_calldata.append(move::Direction::Right(()).into());
-        world.execute('move', move_calldata);
-        let mut keys = array::ArrayTrait::new();
-        keys.append(caller.into());
+        let mut create_card_calldata_player2: Array<felt252> = ArrayTrait::new();
+        create_card_calldata_player2.append(2);
+        create_card_calldata_player2.append(0);
+        create_card_calldata_player2.append(10);
+        world.execute('create_card_system', create_card_calldata_player2);
 
-        let moves = world.entity('Moves', keys.span(), 0, dojo::SerdeLen::<Moves>::len());
-        assert(*moves[0] == 9, 'moves is wrong');
-        let new_position = world
-            .entity('Position', keys.span(), 0, dojo::SerdeLen::<Position>::len());
-        assert(*new_position[0] == 11, 'position x is wrong');
-        assert(*new_position[1] == 10, 'position y is wrong');
+        let mut token_id_player1: u256 = 1;
+        let card_player1 = get!(world, token_id_player1, Card);
+        // let card_player2 = get!(world, 0, Card);
+
+        assert(card_player1.dribble == 12, 'defense is wrong');
     }
 }

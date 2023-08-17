@@ -1,57 +1,52 @@
 use array::ArrayTrait;
 use starknet::ContractAddress;
+use option::{Option, OptionTrait};
+use debug::PrintTrait;
 
 #[derive(Component, Copy, Drop, Serde, SerdeLen)]
-struct Moves {
+struct Card {
+    /// The token id in the NFT contract of this card.
     #[key]
-    player: ContractAddress,
-    remaining: u8,
+    token_id: u256,
+    /// Dribble statistic of the card.
+    dribble: u8,
+    /// Current dribble stat, depending on card placement
+    current_dribble: u8,
+    /// Defense statistic of the card.
+    defense: u8,
+    /// Current defense stat, depending on card placement
+    current_defense: u8,
+    /// Energy cost of the card.
+    cost: u8,
+    /// Assigned role
+    role: Roles,
+    /// Card is currently captain of the team
+    is_captain: bool,
 }
 
-#[derive(Component, Copy, Drop, Serde, SerdeLen)]
-struct Position {
-    #[key]
-    player: ContractAddress,
-    x: u32,
-    y: u32
+#[derive(Copy, Drop, Serde)]
+enum Roles {
+    A,
+    B,
+    C,
+    D,
 }
 
-trait PositionTrait {
-    fn is_zero(self: Position) -> bool;
-    fn is_equal(self: Position, b: Position) -> bool;
-}
-
-impl PositionImpl of PositionTrait {
-    fn is_zero(self: Position) -> bool {
-        if self.x - self.y == 0 {
-            return true;
-        }
-        false
-    }
-
-    fn is_equal(self: Position, b: Position) -> bool {
-        self.x == b.x && self.y == b.y
+impl RolesSerdeLen of dojo::SerdeLen<Roles> {
+    #[inline(always)]
+    fn len() -> usize {
+        4
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use debug::PrintTrait;
-    use super::{Position, PositionTrait};
-
-    #[test]
-    #[available_gas(100000)]
-    fn test_position_is_zero() {
-        let player = starknet::contract_address_const::<0x0>();
-        assert(PositionTrait::is_zero(Position { player, x: 0, y: 0 }), 'not zero');
-    }
-
-    #[test]
-    #[available_gas(100000)]
-    fn test_position_is_equal() {
-        let player = starknet::contract_address_const::<0x0>();
-        let position = Position { player, x: 420, y: 0 };
-        position.print();
-        assert(PositionTrait::is_equal(position, Position { player, x: 420, y: 0 }), 'not equal');
+impl RolesPrint of debug::PrintTrait<Roles> {
+    fn print(self: Roles) {
+        match self {
+            Roles::A => 'Goalkeeper'.print(),
+            Roles::B => 'Defender'.print(),
+            Roles::C => 'Midfielder'.print(),
+            Roles::D => 'Attacker'.print(),
+        }
     }
 }
